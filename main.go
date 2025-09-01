@@ -1,7 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"github.com/Shobhit-Nagpal/supadaemon/cmd"
+)
 
 func main() {
-	fmt.Println("Hello, from Supadaemon")
+	cmd.Execute()
 }
