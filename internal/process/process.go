@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Shobhit-Nagpal/supadaemon/internal/data"
-	"github.com/Shobhit-Nagpal/supadaemon/internal/utils"
 )
 
 type Process struct {
