@@ -13,7 +13,7 @@ var rootCmd = &cobra.Command{
 	Long: `supadaemon is a background service that continuously monitors your Supabase projects.
     
     It runs as a daemon process, periodically checking the health and status of your 
-    Supabase instances at configurable intervals (default: every 2 hours).
+    Supabase instances at configurable intervals (default: every 5 hours).
     
     Perfect for:
     • Monitoring project uptime and availability  
