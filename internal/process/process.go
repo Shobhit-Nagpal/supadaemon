@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
+	"syscall"
 	"time"
 
 	"github.com/Shobhit-Nagpal/supadaemon/internal/data"
+	"github.com/Shobhit-Nagpal/supadaemon/internal/utils"
 )
 
 type Process struct {
@@ -20,6 +23,10 @@ func New(data data.Model) *Process {
 }
 
 func (p *Process) Spawn(ctx context.Context) {
+	if isRunning() {
+		return
+	}
+
 	ticker := time.NewTicker(p.processData.Interval())
 	defer ticker.Stop()
 
@@ -50,4 +57,20 @@ func makeRequest(url string) error {
 	}
 
 	return nil
+}
+
+func isRunning() bool {
+	pid, err := utils.ReadPID()
+	if err != nil {
+		return false
+	}
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+
+	// Send signal 0 to test existence
+	err = process.Signal(syscall.Signal(0))
+	return err == nil
 }
