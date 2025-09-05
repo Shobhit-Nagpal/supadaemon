@@ -2,7 +2,6 @@ package utils
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,8 +12,10 @@ import (
 	"time"
 
 	"github.com/Shobhit-Nagpal/supadaemon/internal/data"
+	"github.com/Shobhit-Nagpal/supadaemon/internal/errors"
 )
 
+const serviceName = "supadaemon"
 const configDirName = ".supadaemon"
 const configFileName = "supadaemon.json"
 const pidFile = "/var/run/supadaemon.pid"
@@ -25,10 +26,10 @@ const defaultInterval = 5 * time.Hour
 
 var defaultConfig data.Model = data.NewModel(defaultUrl, defaultInterval)
 
-func GetConfigDirectory() (string, error) {
+func getConfigDirectory() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", errors.NewFileError("Home directory", errors.ReadFile)
 	}
 
 	configDir := path.Join(homeDir, configDirName)
@@ -36,8 +37,8 @@ func GetConfigDirectory() (string, error) {
 	return configDir, nil
 }
 
-func GetConfigData() (*data.Model, error) {
-	configDir, err := GetConfigDirectory()
+func getConfigData() (*data.Model, error) {
+	configDir, err := getConfigDirectory()
 	if err != nil {
 		return nil, err
 	}
@@ -45,12 +46,12 @@ func GetConfigData() (*data.Model, error) {
 	configFilePath := buildConfigPath(configDir, configFileName)
 
 	if !fileExists(configFilePath) {
-		return nil, errors.New("Config file not found")
+		return nil, errors.NewFileError(configFilePath, errors.FileNotFound)
 	}
 
 	fileData, err := os.ReadFile(configFilePath)
 	if err != nil {
-		return nil, err
+		return nil, errors.NewFileError(configFilePath, errors.ReadFile)
 	}
 
 	var processData data.Model
@@ -64,13 +65,19 @@ func GetConfigData() (*data.Model, error) {
 
 func WritePID() error {
 	pid := getPID()
-	return os.WriteFile(pidFile, []byte(strconv.Itoa(pid)), 0644)
+	err := os.WriteFile(pidFile, []byte(strconv.Itoa(pid)), 0644)
+
+	if err != nil {
+		return errors.NewFileError(pidFile, errors.WriteFile)
+	}
+
+	return err
 }
 
 func ReadPID() (int, error) {
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
-		return 0, err
+		return 0, errors.NewFileError(pidFile, errors.ReadFile)
 	}
 
 	pidStr := strings.TrimSpace(string(data))
@@ -89,13 +96,13 @@ func GetPIDPath() string {
 func SetupServiceFile() error {
 	// Check if running as root
 	if os.Geteuid() != 0 {
-		return errors.New("service setup requires root privileges (run with sudo)")
+		return errors.NewServiceError(serviceName, errors.RootAccess)
 	}
 
 	// Get executable path
 	execPath, err := os.Executable()
 	if err != nil {
-		return err
+		return errors.NewSystemError(errors.ExecuteableLookup)
 	}
 
 	// Get current user info (the user who ran sudo)
@@ -103,7 +110,7 @@ func SetupServiceFile() error {
 	if username == "" {
 		currentUser, err := user.Current()
 		if err != nil {
-			return err
+			return errors.NewSystemError(errors.UserLookup)
 		}
 		username = currentUser.Username
 	}
@@ -133,20 +140,20 @@ WantedBy=multi-user.target
 	// Write service file
 	err = os.WriteFile(servicePath, []byte(serviceContent), 0644)
 	if err != nil {
-		return err
+		return errors.NewFileError(servicePath, errors.WriteFile)
 	}
 
 	// Reload systemd
-	cmd := exec.Command("systemctl", "daemon-reload")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to reload systemd: %v", err)
+	err = reloadSystemd()
+	if err != nil {
+		return errors.NewSystemError(errors.ReloadDaemon)
 	}
 
 	return nil
 }
 
 func SetupConfig() error {
-	configDir, err := GetConfigDirectory()
+	configDir, err := getConfigDirectory()
 	if err != nil {
 		return err
 	}
@@ -154,7 +161,7 @@ func SetupConfig() error {
 	if !dirExists(configDir) {
 		err = os.Mkdir(configDir, 0755)
 		if err != nil {
-			return err
+			return errors.NewFileError(configDir, errors.WriteFile)
 		}
 	}
 
@@ -162,60 +169,65 @@ func SetupConfig() error {
 	if !fileExists(configFile) {
 		jsonData, err := json.Marshal(defaultConfig)
 		if err != nil {
-			return err
+			return errors.NewSystemError(errors.DataSerialization)
 		}
 
 		err = os.WriteFile(configFile, jsonData, 0644)
 		if err != nil {
-			return err
+			return errors.NewFileError(configFile, errors.WriteFile)
 		}
+	}
+
+	return nil
+}
+
+func SetupAll() error {
+	err := SetupConfig()
+	if err != nil {
+		return err
+	}
+
+	err = SetupServiceFile()
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func CleanupService() error {
-	var errs []error
 
-	// 1. Stop the service if running
 	if err := stopService(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to stop service: %v", err))
+		return errors.NewServiceError(serviceName, errors.StopService)
 	}
 
-	// 2. Disable the service
 	if err := disableService(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to disable service: %v", err))
+		return errors.NewServiceError(serviceName, errors.DisableService)
 	}
 
-	// 3. Remove service file
 	if fileExists(servicePath) {
 		if err := os.Remove(servicePath); err != nil {
-			errs = append(errs, fmt.Errorf("failed to remove service file: %v", err))
+			return errors.NewFileError(servicePath, errors.DeleteFile)
 		}
 	}
 
 	// 4. Remove PID file if exists
 	if fileExists(pidFile) {
 		if err := os.Remove(pidFile); err != nil {
-			errs = append(errs, fmt.Errorf("failed to remove PID file: %v", err))
+			return errors.NewFileError(pidFile, errors.DeleteFile)
 		}
 	}
 
 	// 5. Reload systemd
 	if err := reloadSystemd(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to reload systemd: %v", err))
-	}
-
-	// Return combined errors if any
-	if len(errs) > 0 {
-		return fmt.Errorf("cleanup encountered errors: %v", errs)
+		return errors.NewSystemError(errors.ReloadDaemon)
 	}
 
 	return nil
 }
 
 func CleanupConfig() error {
-	configDir, err := GetConfigDirectory()
+	configDir, err := getConfigDirectory()
 	if err != nil {
 		return err
 	}
@@ -227,27 +239,78 @@ func CleanupConfig() error {
 	return nil
 }
 
-// Full cleanup - everything
 func CleanupAll() error {
 	// Check root privileges for service cleanup
 	if os.Geteuid() != 0 {
-		return errors.New("cleanup requires root privileges (run with sudo)")
+		return errors.NewServiceError(serviceName, errors.RootAccess)
 	}
-
-	var errs []error
 
 	// Clean service
 	if err := CleanupService(); err != nil {
-		errs = append(errs, err)
+		return err
 	}
 
 	// Clean config (runs as original user)
 	if err := CleanupConfig(); err != nil {
-		errs = append(errs, fmt.Errorf("failed to cleanup config: %v", err))
+		return err
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("cleanup errors: %v", errs)
+	return nil
+}
+
+func EnableService() error {
+	if os.Geteuid() != 0 {
+		return errors.NewServiceError(serviceName, errors.RootAccess)
+	}
+
+	if isServiceEnabled() {
+		return nil
+	}
+
+	err := enableService()
+	if err != nil {
+		errors.NewServiceError(serviceName, errors.EnableService)
+	}
+
+	return nil
+}
+
+func StartService() error {
+	if os.Geteuid() != 0 {
+		return errors.NewServiceError(serviceName, errors.RootAccess)
+	}
+
+	if !isServiceEnabled() {
+		err := EnableService()
+		if err != nil {
+			return err
+		}
+	}
+
+	if isServiceRunning() {
+		return nil
+	}
+
+	err := startService()
+	if err != nil {
+		errors.NewServiceError(serviceName, errors.StartService)
+	}
+
+	return nil
+}
+
+func StopService() error {
+	if os.Geteuid() != 0 {
+		return errors.NewServiceError(serviceName, errors.RootAccess)
+	}
+
+	if !isServiceRunning() {
+		return nil
+	}
+
+	err := stopService()
+	if err != nil {
+		errors.NewServiceError(serviceName, errors.StopService)
 	}
 
 	return nil
@@ -275,17 +338,49 @@ func getPID() int {
 	return os.Getpid()
 }
 
+func startService() error {
+	cmd := exec.Command("systemctl", "start", serviceName)
+	return cmd.Run()
+}
+
+func enableService() error {
+	cmd := exec.Command("systemctl", "enable", serviceName)
+	return cmd.Run()
+}
+
 func stopService() error {
-	cmd := exec.Command("systemctl", "stop", "supadaemon")
+	cmd := exec.Command("systemctl", "stop", serviceName)
 	return cmd.Run()
 }
 
 func disableService() error {
-	cmd := exec.Command("systemctl", "disable", "supadaemon")
+	cmd := exec.Command("systemctl", "disable", serviceName)
 	return cmd.Run()
 }
 
 func reloadSystemd() error {
 	cmd := exec.Command("systemctl", "daemon-reload")
 	return cmd.Run()
+}
+
+func isServiceEnabled() bool {
+	cmd := exec.Command("systemctl", "is-active", serviceName)
+	err := cmd.Run()
+
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
+func isServiceRunning() bool {
+	cmd := exec.Command("systemctl", "is-active", serviceName)
+	err := cmd.Run()
+
+	if err != nil {
+		return false
+	}
+
+	return true
 }

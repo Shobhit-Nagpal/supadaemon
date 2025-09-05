@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/Shobhit-Nagpal/supadaemon/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -11,6 +12,11 @@ var startCmd = &cobra.Command{
 	Short: "Start the daemon process",
 	Long:  `Spins up the daemon process for supadaemon`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Start daemon process")
+		err := utils.StartService()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+
+		fmt.Println("Supadaemon is running!")
 	},
 }
