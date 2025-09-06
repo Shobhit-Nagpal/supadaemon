@@ -269,7 +269,7 @@ func EnableService() error {
 
 	err := enableService()
 	if err != nil {
-		errors.NewServiceError(serviceName, errors.EnableService)
+		return errors.NewServiceError(serviceName, errors.EnableService)
 	}
 
 	return nil
@@ -310,8 +310,32 @@ func StopService() error {
 
 	err := stopService()
 	if err != nil {
-		errors.NewServiceError(serviceName, errors.StopService)
+		return errors.NewServiceError(serviceName, errors.StopService)
 	}
+
+	return nil
+}
+
+func DisableService() error {
+	if !isServiceEnabled() {
+		return nil
+	}
+
+	err := disableService()
+	if err != nil {
+		return errors.NewServiceError(serviceName, errors.DisableService)
+	}
+
+	return nil
+}
+
+func GetServiceStatus() error {
+	status, err := getServiceStatus()
+	if err != nil {
+		return errors.NewServiceError(serviceName, errors.GetServiceStatus)
+	}
+
+	fmt.Print(status)
 
 	return nil
 }
@@ -356,6 +380,23 @@ func stopService() error {
 func disableService() error {
 	cmd := exec.Command("systemctl", "disable", serviceName)
 	return cmd.Run()
+}
+
+func getServiceStatus() (string, error) {
+	cmd := exec.Command("systemctl", "status", serviceName)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			if exitError.ExitCode() <= 4 {
+				return string(output), nil
+			}
+		}
+
+		return "", err
+	}
+
+	return string(output), nil
 }
 
 func reloadSystemd() error {
