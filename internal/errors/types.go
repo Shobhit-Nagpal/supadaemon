@@ -11,15 +11,15 @@ func NewFileError(fileName, op string) FileError {
 
 	switch op {
 	case WriteFile:
-		errMsg = fmt.Sprintf("Failed to write file: %s\n", fileName)
+		errMsg = fmt.Sprintf("Failed to write file: %s", fileName)
 	case ReadFile:
-		errMsg = fmt.Sprintf("Failed to read file: %s\n", fileName)
+		errMsg = fmt.Sprintf("Failed to read file: %s", fileName)
 	case DeleteFile:
-		errMsg = fmt.Sprintf("Failed to delete file: %s\n", fileName)
+		errMsg = fmt.Sprintf("Failed to delete file: %s", fileName)
 	case FileNotFound:
-		errMsg = fmt.Sprintf("File does not exist: %s\n", fileName)
+		errMsg = fmt.Sprintf("File does not exist: %s", fileName)
 	default:
-		errMsg = fmt.Sprintf("Unexpected error for file: %s\n", fileName)
+		errMsg = fmt.Sprintf("Unexpected error for file: %s", fileName)
 	}
 
 	errMsg = buildErrorMsg(errMsg, FileErr)
@@ -36,19 +36,21 @@ func NewServiceError(service, op string) ServiceError {
 	errMsg := ""
 	switch op {
 	case ReloadService:
-		errMsg = fmt.Sprintf("Failed to reload service\n")
+		errMsg = fmt.Sprintf("Failed to reload service")
 	case StopService:
-		errMsg = fmt.Sprintf("Failed to stop service\n")
+		errMsg = fmt.Sprintf("Failed to stop service")
 	case StartService:
-		errMsg = fmt.Sprintf("Failed to start service\n")
+		errMsg = fmt.Sprintf("Failed to start service")
 	case EnableService:
-		errMsg = fmt.Sprintf("Failed to enable service\n")
+		errMsg = fmt.Sprintf("Failed to enable service")
 	case DisableService:
-		errMsg = fmt.Sprintf("Failed to disable service\n")
+		errMsg = fmt.Sprintf("Failed to disable service")
 	case RootAccess:
-		errMsg = fmt.Sprintf("Require root access (run with sudo)\n")
+		errMsg = fmt.Sprintf("Require root access (run with sudo)")
+	case GetServiceStatus:
+		errMsg = fmt.Sprintf("Failed to get service status")
 	default:
-		errMsg = fmt.Sprintf("%s\n", service)
+		errMsg = fmt.Sprintf("%s", service)
 	}
 
 	errMsg = buildErrorMsg(errMsg, ServiceErr)
@@ -65,17 +67,17 @@ func NewSystemError(op string) ServiceError {
 	errMsg := ""
 	switch op {
 	case UserLookup:
-		errMsg = fmt.Sprintf("Failed to get current user\n")
+		errMsg = fmt.Sprintf("Failed to get current user")
 	case ExecuteableLookup:
-		errMsg = fmt.Sprintf("Failed to get executeable\n")
+		errMsg = fmt.Sprintf("Failed to get executeable")
 	case ReloadDaemon:
-		errMsg = fmt.Sprintf("Failed to reload daemon\n")
+		errMsg = fmt.Sprintf("Failed to reload daemon")
 	case DataSerialization:
-		errMsg = fmt.Sprintf("Failed to serialize data\n")
+		errMsg = fmt.Sprintf("Failed to serialize data")
 	case DataDeserialization:
-		errMsg = fmt.Sprintf("Failed to deserialize data\n")
+		errMsg = fmt.Sprintf("Failed to deserialize data")
 	default:
-		errMsg = fmt.Sprintf("Runtime error\n")
+		errMsg = fmt.Sprintf("Runtime error")
 	}
 
 	errMsg = buildErrorMsg(errMsg, SystemErr)

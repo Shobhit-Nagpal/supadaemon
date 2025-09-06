@@ -14,6 +14,7 @@ const (
 	DisableService      = "DisableService"
 	EnableService       = "EnableService"
 	StartService        = "StartService"
+	GetServiceStatus    = "GetServiceStatus"
 	UserLookup          = "UserLookup"
 	ExecuteableLookup   = "ExecuteableLookup"
 	ReloadDaemon        = "ReloadDaemon"
